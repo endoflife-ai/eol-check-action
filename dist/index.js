@@ -27568,9 +27568,21 @@ const API_BASE = 'https://api.endoflife.ai/v1';
 
 function fetchJson(url, apiKey) {
   return new Promise((resolve, reject) => {
-    const headers = { 'User-Agent': 'eol-check-action/1.0' };
+    const headers = { 'User-Agent': 'eol-check-action/1.1' };
     if (apiKey) headers['X-API-Key'] = apiKey;
     https.get(url, { headers }, res => {
+      // From 2026-11-16 the API refuses requests without a valid key (401/403).
+      // Before 1.1.0 that became one warning per runtime and a green job: an
+      // end-of-life gate that silently passed. Now it fails the job.
+      if (res.statusCode === 401 || res.statusCode === 403) {
+        res.resume();
+        const err = new Error(apiKey
+          ? `The endoflife.ai API refused the api-key (HTTP ${res.statusCode}). Check the key at https://endoflife.ai/api, or switch to endoflife-ai/eol-check@v1, which needs no key.`
+          : 'The endoflife.ai API needs a key from November 16, 2026, so this action can no longer check anything without one. Switch to endoflife-ai/eol-check@v1 (works without a key: https://github.com/endoflife-ai/eol-check), or add a free key (150 requests a day, no expiry) from https://endoflife.ai/api#free-key as the api-key input.');
+        err.noKey = true;
+        reject(err);
+        return;
+      }
       if (res.statusCode === 404) { resolve(null); return; }
       if (res.statusCode === 429) { reject(new Error('Rate limit exceeded. Add an endoflife.ai API key to increase limits.')); return; }
       if (res.statusCode !== 200) { reject(new Error(`API error ${res.statusCode} for ${url}`)); return; }
@@ -27825,6 +27837,7 @@ async function run() {
           core.info(`  🟢 ${item.slug} ${item.version} — Supported until ${data.eol_date || 'TBD'} · Source: ${item.source}`);
         }
       } catch (err) {
+        if (err.noKey) { core.setFailed(err.message); return; }
         core.warning(`  ⚠️  Could not check ${item.slug} ${item.version}: ${err.message}`);
         results.push({ ...item, status: 'error', error: err.message });
       }
