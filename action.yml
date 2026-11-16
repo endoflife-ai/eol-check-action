@@ -20,7 +20,7 @@ inputs:
     required: false
     default: '90'
   api-key:
-    description: 'endoflife.ai Pro API key (optional — free tier used if not provided)'
+    description: 'endoflife.ai API key (needed for every lookup; a free key works: https://endoflife.ai/api#free-key)'
     required: false
     default: ''
   paths:
